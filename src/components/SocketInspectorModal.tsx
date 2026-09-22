@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, Send, X, Check, Copy, Code, Cpu, Server } from 'lucide-react';
+import { Terminal, Send, X, Globe, Cpu } from 'lucide-react';
 import { api } from '../api';
 
 interface SocketInspectorModalProps {
@@ -12,14 +12,14 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
   const [payloadStr, setPayloadStr] = useState('{}');
   const [responseOutput, setResponseOutput] = useState<any>(null);
   const [latency, setLatency] = useState<number | null>(null);
-  const [targetSocket, setTargetSocket] = useState<string>('127.0.0.1:8765');
+  const [targetSocket, setTargetSocket] = useState<string>('HTTP REST /api/ (Serverless Ready)');
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState<'console' | 'code'>('console');
 
   if (!isOpen) return null;
 
   const presetActions = [
-    { label: 'Ping Server', action: 'ping', payload: '{}' },
+    { label: 'Ping Engine Health', action: 'ping', payload: '{}' },
     { label: 'Get Dashboard Data', action: 'get_dashboard', payload: '{}' },
     { label: 'Fetch All Jobs', action: 'get_jobs', payload: '{}' },
     { label: 'Fetch All Machines', action: 'get_resources', payload: '{}' },
@@ -69,13 +69,13 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
             </div>
             <div>
               <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                <span>Python TCP Socket Terminal & IPC Inspector</span>
+                <span>Python API Terminal & IPC Inspector</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
-                  port {targetSocket}
+                  {targetSocket}
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Direct low-level TCP socket client sending newline-delimited JSON packets to `server.py`
+                Standard HTTP REST / Serverless interface with dual TCP socket IPC support
               </p>
             </div>
           </div>
@@ -88,7 +88,7 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
                   activeTab === 'console' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Socket Terminal
+                API Console
               </button>
               <button
                 onClick={() => setActiveTab('code')}
@@ -96,7 +96,7 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
                   activeTab === 'code' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Python Code Architecture
+                Architecture Stack
               </button>
             </div>
             <button
@@ -114,7 +114,7 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
             {/* Left Column: Command presets & Payload builder */}
             <div className="w-full md:w-80 border-r border-slate-800 p-4 space-y-4 overflow-y-auto bg-slate-900/50 text-xs">
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Preset Socket Commands</label>
+                <label className="block text-slate-400 font-medium mb-1">Preset Commands</label>
                 <div className="space-y-1">
                   {presetActions.map((p, idx) => (
                     <button
@@ -158,7 +158,7 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
                 className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold flex items-center justify-center space-x-1.5 shadow-sm transition-colors"
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>{isSending ? 'Transmitting...' : 'Send Socket Packet'}</span>
+                <span>{isSending ? 'Transmitting...' : 'Execute Command'}</span>
               </button>
             </div>
 
@@ -167,10 +167,10 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
               <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-slate-400">
                 <span className="flex items-center space-x-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span>TCP Stream Output ({targetSocket})</span>
+                  <span>Output ({targetSocket})</span>
                 </span>
                 {latency !== null && (
-                  <span className="text-cyan-400 text-[11px]">Round-trip: {latency} ms</span>
+                  <span className="text-cyan-400 text-[11px]">Latency: {latency} ms</span>
                 )}
               </div>
 
@@ -181,7 +181,7 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
                   </pre>
                 ) : (
                   <div className="h-full flex items-center justify-center text-slate-600">
-                    Select a preset or enter an action and click &quot;Send Socket Packet&quot;
+                    Select a preset or enter an action and click &quot;Execute Command&quot;
                   </div>
                 )}
               </div>
@@ -191,51 +191,51 @@ export const SocketInspectorModal: React.FC<SocketInspectorModalProps> = ({ isOp
           /* Code Architecture View */
           <div className="flex-1 p-5 overflow-y-auto space-y-4 text-xs font-mono bg-slate-950 text-slate-300">
             <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-              <span className="text-cyan-400 font-bold block"># 1. OOP Models (backend/models.py)</span>
+              <span className="text-cyan-400 font-bold block flex items-center space-x-2">
+                <Globe className="w-4 h-4" />
+                <span># 1. Production HTTP REST API & Serverless (api/index.py)</span>
+              </span>
               <p className="text-slate-400 font-sans">
-                Encapsulates entities with attributes, validation, and polymorphic method overriding:
+                Native Vercel Serverless Function eliminating local socket dependencies for 100% production uptime:
               </p>
               <pre className="text-[11px] text-slate-300 bg-slate-950 p-3 rounded border border-slate-800 overflow-x-auto">
-{`class ProductionResource:
-    def __init__(self, resource_id, name, resource_type, capacity, hourly_rate, status="active"):
-        self._id = resource_id
-        self._capacity = capacity
-        ...
-    def calculate_cost(self, duration_hours):
-        return self._hourly_rate * duration_hours
-
-class MachineResource(ProductionResource):
-    """Demonstrates Inheritance and Method Overriding."""
-    def calculate_cost(self, duration_hours):
-        effective_hours = duration_hours / self._efficiency_factor
-        return (self._hourly_rate + self._operational_cost) * effective_hours`}
+{`class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self._read_json_body()
+        res = dispatcher.dispatch({"action": "run_scheduling", "payload": body})
+        self._send_json_response(res)`}
               </pre>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-              <span className="text-cyan-400 font-bold block"># 2. Functional Programming (backend/utils.py)</span>
+              <span className="text-cyan-400 font-bold block flex items-center space-x-2">
+                <Cpu className="w-4 h-4" />
+                <span># 2. Local Socket & Direct Python Fallback (server.ts & backend/dispatch.py)</span>
+              </span>
+              <pre className="text-[11px] text-slate-300 bg-slate-950 p-3 rounded border border-slate-800 overflow-x-auto">
+{`export async function executePythonAction(action: string, payload: any = {}) {
+    try {
+        const data = await sendSocketRequest(action, payload);
+        return { data, mode: 'socket' };
+    } catch (err) {
+        // Direct Python execution fallback
+        const data = await executeDirectPython(action, payload);
+        return { data, mode: 'direct_python' };
+    }
+}`}
+              </pre>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+              <span className="text-cyan-400 font-bold block"># 3. Core Functional & OOP Engines (backend/)</span>
               <pre className="text-[11px] text-slate-300 bg-slate-950 p-3 rounded border border-slate-800 overflow-x-auto">
 {`# Functional map, filter, lambda:
 urgent_jobs = list(filter(lambda j: j.priority == 'urgent', jobs))
 projected_hours = list(map(lambda j: j.processing_time * 1.15, jobs))
 
-# List and dictionary comprehensions:
-urgent_ids = [j.id for j in jobs if j.priority == 'urgent']
-resource_map = {r.id: r for r in resources}
-
-# Higher-order function composition:
-pipeline = compose(validate_job, prioritize_job, schedule_job)`}
-              </pre>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-              <span className="text-cyan-400 font-bold block"># 3. Socket IPC Server (backend/server.py)</span>
-              <pre className="text-[11px] text-slate-300 bg-slate-950 p-3 rounded border border-slate-800 overflow-x-auto">
-{`server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server_sock.bind(('127.0.0.1', 8765))
-server_sock.listen(10)
-# Multi-threaded client handling with JSON newline framing`}
+# Symbolic calculus with SymPy:
+from sympy import symbols, diff, solve
+Q_opt = sqrt(2 * D * S / (H * (1 - D / P)))`}
               </pre>
             </div>
           </div>

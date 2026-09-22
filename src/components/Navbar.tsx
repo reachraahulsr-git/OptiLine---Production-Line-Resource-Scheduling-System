@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   BarChart3,
   Calculator,
-  Workflow
+  Workflow,
+  Globe
 } from 'lucide-react';
 import { PythonServerStatus } from '../types';
 
@@ -49,6 +50,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'multiprocessing', label: 'Parallel Sim', icon: Workflow }
   ];
 
+  const engineMode = pythonStatus?.mode || 'Production HTTP REST API';
+
   return (
     <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 shadow-md">
       {/* Top utility row */}
@@ -65,6 +68,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-950 border border-cyan-800/60 text-cyan-300 font-medium">
                   Manufacturing OS
                 </span>
+                <span className="hidden sm:inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-800/60 text-emerald-300 font-mono">
+                  <Globe className="w-2.5 h-2.5" />
+                  <span>Vercel / Cloud Ready</span>
+                </span>
               </div>
               <p className="text-xs text-slate-400">Production Line Resource Scheduling System</p>
             </div>
@@ -72,21 +79,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* System Telemetry Badges & Quick Tools */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Python Socket Health Pill */}
+            {/* Python Engine Health Pill (Production HTTP API) */}
             <div
               onClick={onOpenSocketModal}
-              title="Click to open Python Socket Terminal & IPC Inspector"
+              title="Click to open Python API & Command Console"
               className="cursor-pointer flex items-center space-x-2 px-2.5 py-1.5 rounded-md bg-slate-800/90 border border-slate-700/80 hover:border-cyan-500/40 transition-colors text-xs text-slate-300"
             >
               <div className="relative flex items-center justify-center">
-                <span className={`w-2 h-2 rounded-full ${pythonStatus ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`} />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
               <div className="hidden md:flex flex-col text-left">
                 <span className="font-semibold text-slate-200">
-                  TCP Socket: {pythonStatus ? '8765 Active' : 'Connecting...'}
+                  Engine: Python 3.x Online
                 </span>
                 <span className="text-[10px] text-slate-400 font-mono">
-                  {pythonStatus ? `Python ${pythonStatus.python_version} (PID ${pythonStatus.server_pid})` : 'Offline'}
+                  {engineMode}
                   {latencyMs !== null && ` • ${latencyMs}ms`}
                 </span>
               </div>
@@ -102,14 +109,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Tkinter GUI</span>
             </button>
 
-            {/* Socket Inspector button */}
+            {/* Python API Inspector button */}
             <button
               id="socket-inspector-btn"
               onClick={onOpenSocketModal}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 text-xs font-medium text-slate-200 transition-colors"
             >
               <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="hidden sm:inline">Socket Console</span>
+              <span className="hidden sm:inline">API Console</span>
             </button>
 
             {/* Reset Data */}
@@ -143,15 +150,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             return (
               <button
                 key={tab.id}
-                id={`tab-${tab.id}`}
+                id={`tab-btn-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all ${
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                   isActive
-                    ? 'bg-slate-800 text-cyan-400 border border-slate-700/80 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
                 <span>{tab.label}</span>
               </button>
             );

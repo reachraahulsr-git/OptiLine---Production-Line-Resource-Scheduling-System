@@ -10,14 +10,14 @@ const PYTHON_SOCKET_PORT = parseInt(process.env.PYTHON_SOCKET_PORT || '8765', 10
 
 let pythonProcess: ChildProcess | null = null;
 
-// Ensure Python socket server is actively running
+// Ensure Python socket server is actively running in background for local dev
 function ensurePythonServer() {
   const testSock = new net.Socket();
   testSock.setTimeout(800);
 
   testSock.on('connect', () => {
     testSock.destroy();
-    console.log(`[Express Bridge] Connected to existing Python Socket Server on port ${PYTHON_SOCKET_PORT}`);
+    console.log(`[Express Bridge] Connected to Python Socket Server on port ${PYTHON_SOCKET_PORT}`);
   });
 
   testSock.on('error', () => {
@@ -54,16 +54,19 @@ function ensurePythonServer() {
   testSock.connect(PYTHON_SOCKET_PORT, PYTHON_SOCKET_HOST);
 }
 
-// Low-level TCP Socket IPC Client
+// Low-level TCP Socket IPC Client (used for local socket testing)
 export function sendSocketRequest(action: string, payload: any = {}): Promise<any> {
   return new Promise((resolve, reject) => {
     const client = new net.Socket();
     let responseData = '';
     let isResolved = false;
 
-    client.setTimeout(25000); // 25s timeout for heavy parallel simulation
+    // Fast 1.5s connection timeout so fallback triggers promptly if socket is down
+    client.setTimeout(1500);
 
     client.connect(PYTHON_SOCKET_PORT, PYTHON_SOCKET_HOST, () => {
+      // Once connected, extend timeout to 25s for heavy calculations
+      client.setTimeout(25000);
       const message = JSON.stringify({ action, payload }) + '\n';
       client.write(message, 'utf-8');
     });
@@ -86,7 +89,7 @@ export function sendSocketRequest(action: string, payload: any = {}): Promise<an
     client.on('timeout', () => {
       if (!isResolved) {
         client.destroy();
-        reject(new Error(`Socket operation '${action}' timed out after 25s`));
+        reject(new Error(`Socket operation '${action}' timed out`));
       }
     });
 
@@ -98,27 +101,97 @@ export function sendSocketRequest(action: string, payload: any = {}): Promise<an
   });
 }
 
+// Direct Python Execution Runner (in-process fallback, removes 127.0.0.1:8765 hard dependency)
+export function executeDirectPython(action: string, payload: any = {}): Promise<any> {
+  return new Promise((resolve, reject) => {
+    try {
+      const pythonScript = path.join(process.cwd(), 'backend', 'dispatch.py');
+      const inputPayload = JSON.stringify({ action, payload });
+      const py = spawn('python3', [pythonScript, inputPayload], {
+        env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      py.stdout.on('data', (d) => {
+        stdout += d.toString();
+      });
+
+      py.stderr.on('data', (d) => {
+        stderr += d.toString();
+      });
+
+      py.on('close', (code) => {
+        if (code !== 0) {
+          return reject(new Error(`Python process exited with code ${code}: ${stderr}`));
+        }
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          resolve(parsed);
+        } catch (err) {
+          reject(new Error(`Failed to parse Python response: ${stdout || stderr}`));
+        }
+      });
+
+      py.on('error', (err) => {
+        reject(err);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Resilient executor: tries TCP socket first, falls back instantly to direct Python execution
+export async function executePythonAction(action: string, payload: any = {}): Promise<{ data: any; mode: string }> {
+  try {
+    const data = await sendSocketRequest(action, payload);
+    return { data, mode: 'socket' };
+  } catch (socketErr) {
+    // Graceful fallback to direct Python execution
+    const data = await executeDirectPython(action, payload);
+    return { data, mode: 'direct_python' };
+  }
+}
+
 async function startServer() {
   ensurePythonServer();
 
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
+  // CORS for dev and production flexibility
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // ==================== API ROUTES ====================
 
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
-      service: 'OptiLine Manufacturing Scheduling Bridge',
+      service: 'OptiLine Production Scheduling Engine',
+      environment: process.env.NODE_ENV || 'development',
       timestamp: new Date().toISOString()
     });
   });
 
-  // Socket Server Ping / Diagnostics
+  // Python Engine Status / Diagnostics
   app.get('/api/python/status', async (req, res) => {
     try {
-      const result = await sendSocketRequest('ping');
-      res.json(result);
+      const { data, mode } = await executePythonAction('ping');
+      res.json({
+        ...data,
+        mode: mode === 'socket' ? 'TCP Socket (Development)' : 'HTTP REST (Production / In-Process)',
+        socket_target: mode === 'socket' ? `${PYTHON_SOCKET_HOST}:${PYTHON_SOCKET_PORT}` : 'Direct Python Execution'
+      });
     } catch (err: any) {
       res.status(503).json({ status: 'error', message: err.message });
     }
@@ -127,7 +200,7 @@ async function startServer() {
   // Dashboard Aggregates
   app.get('/api/dashboard', async (req, res) => {
     try {
-      const data = await sendSocketRequest('get_dashboard');
+      const { data } = await executePythonAction('get_dashboard');
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -137,7 +210,7 @@ async function startServer() {
   // Jobs CRUD
   app.get('/api/jobs', async (req, res) => {
     try {
-      const data = await sendSocketRequest('get_jobs');
+      const { data } = await executePythonAction('get_jobs');
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -146,7 +219,7 @@ async function startServer() {
 
   app.post('/api/jobs', async (req, res) => {
     try {
-      const data = await sendSocketRequest('create_job', req.body);
+      const { data } = await executePythonAction('create_job', req.body);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -155,7 +228,7 @@ async function startServer() {
 
   app.put('/api/jobs/:id', async (req, res) => {
     try {
-      const data = await sendSocketRequest('update_job', {
+      const { data } = await executePythonAction('update_job', {
         id: req.params.id,
         updates: req.body
       });
@@ -167,7 +240,7 @@ async function startServer() {
 
   app.delete('/api/jobs/:id', async (req, res) => {
     try {
-      const data = await sendSocketRequest('delete_job', { id: req.params.id });
+      const { data } = await executePythonAction('delete_job', { id: req.params.id });
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -177,7 +250,7 @@ async function startServer() {
   // Resources CRUD
   app.get('/api/resources', async (req, res) => {
     try {
-      const data = await sendSocketRequest('get_resources');
+      const { data } = await executePythonAction('get_resources');
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -186,7 +259,7 @@ async function startServer() {
 
   app.post('/api/resources', async (req, res) => {
     try {
-      const data = await sendSocketRequest('create_resource', req.body);
+      const { data } = await executePythonAction('create_resource', req.body);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -195,7 +268,7 @@ async function startServer() {
 
   app.put('/api/resources/:id', async (req, res) => {
     try {
-      const data = await sendSocketRequest('update_resource', {
+      const { data } = await executePythonAction('update_resource', {
         id: req.params.id,
         updates: req.body
       });
@@ -207,7 +280,7 @@ async function startServer() {
 
   app.delete('/api/resources/:id', async (req, res) => {
     try {
-      const data = await sendSocketRequest('delete_resource', { id: req.params.id });
+      const { data } = await executePythonAction('delete_resource', { id: req.params.id });
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -218,7 +291,8 @@ async function startServer() {
   app.post('/api/schedule/run', async (req, res) => {
     try {
       const strategy = req.body.strategy || 'priority_first';
-      const data = await sendSocketRequest('run_scheduling', { strategy, persist: true });
+      const persist = req.body.persist !== undefined ? req.body.persist : true;
+      const { data } = await executePythonAction('run_scheduling', { strategy, persist });
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -227,7 +301,7 @@ async function startServer() {
 
   app.get('/api/schedules', async (req, res) => {
     try {
-      const data = await sendSocketRequest('get_schedules');
+      const { data } = await executePythonAction('get_schedules');
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -236,7 +310,7 @@ async function startServer() {
 
   app.delete('/api/schedules', async (req, res) => {
     try {
-      const data = await sendSocketRequest('clear_schedules');
+      const { data } = await executePythonAction('clear_schedules');
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -246,7 +320,7 @@ async function startServer() {
   // Conflict Detection
   app.get('/api/conflicts', async (req, res) => {
     try {
-      const data = await sendSocketRequest('detect_conflicts');
+      const { data } = await executePythonAction('detect_conflicts');
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -256,7 +330,7 @@ async function startServer() {
   // Analytics & Reports
   app.get('/api/analytics', async (req, res) => {
     try {
-      const data = await sendSocketRequest('get_analytics');
+      const { data } = await executePythonAction('get_analytics');
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -266,7 +340,7 @@ async function startServer() {
   // SymPy Symbolic Calculations
   app.post('/api/sympy', async (req, res) => {
     try {
-      const data = await sendSocketRequest('run_sympy', req.body);
+      const { data } = await executePythonAction('run_sympy', req.body);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -276,7 +350,7 @@ async function startServer() {
   // Multiprocessing Parallel Simulations
   app.post('/api/parallel-sim', async (req, res) => {
     try {
-      const data = await sendSocketRequest('run_parallel_sim');
+      const { data } = await executePythonAction('run_parallel_sim', req.body);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -286,24 +360,24 @@ async function startServer() {
   // Database Seed / Reset
   app.post('/api/reset-data', async (req, res) => {
     try {
-      const data = await sendSocketRequest('seed_data', { force: true });
+      const { data } = await executePythonAction('seed_data', { force: true });
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });
     }
   });
 
-  // Raw Socket Command Terminal endpoint for user inspection
+  // Raw Command Terminal inspector endpoint
   app.post('/api/socket/raw', async (req, res) => {
     try {
       const { action, payload } = req.body;
       const t0 = Date.now();
-      const response = await sendSocketRequest(action, payload);
+      const { data, mode } = await executePythonAction(action, payload);
       const latencyMs = Date.now() - t0;
       res.json({
-        raw_response: response,
+        raw_response: data,
         latency_ms: latencyMs,
-        socket_target: `${PYTHON_SOCKET_HOST}:${PYTHON_SOCKET_PORT}`
+        socket_target: mode === 'socket' ? `${PYTHON_SOCKET_HOST}:${PYTHON_SOCKET_PORT}` : 'HTTP REST Engine (Direct Python)'
       });
     } catch (err: any) {
       res.status(500).json({ status: 'error', message: err.message });

@@ -172,8 +172,10 @@ export interface PythonServerStatus {
   status: string;
   message: string;
   python_version: string;
-  server_pid: number;
-  socket_address: string;
+  server_pid?: number;
+  socket_address?: string;
+  mode?: string;
+  socket_target?: string;
 }
 
 export interface SymPyBatchResult {

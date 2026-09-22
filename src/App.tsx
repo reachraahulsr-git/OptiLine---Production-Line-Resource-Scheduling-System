@@ -290,7 +290,7 @@ export default function App() {
             OptiLine Production Line Resource Scheduling System • Python 3.x Backend with SQLite, SymPy & Multiprocessing
           </span>
           <span className="font-mono text-[11px] text-slate-400">
-            IPC: TCP Socket 127.0.0.1:8765 ↔ Express Node.js Bridge
+            Engine: {pythonStatus?.mode || 'Production HTTP REST API'} • Vercel & Express Ready
           </span>
         </div>
       </footer>
